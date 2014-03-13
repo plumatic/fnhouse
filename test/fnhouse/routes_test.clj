@@ -6,6 +6,26 @@
    [fnhouse.handlers :as handlers]
    [fnhouse.routes :as routes]))
 
+(defn fake-annotated-handlers [& paths-and-methods]
+  (for [[path method] (partition 2 paths-and-methods)]
+    {:handler nil
+     :info {:path path :method method}}))
+
+(deftest build-prefix-map-test
+  (is (= {"a" {"b" {routes/+multiple-wildcard+ {:get {:handler nil :uri-arg-ks [:**]}
+                                                :post {:handler nil :uri-arg-ks [:**]}}}
+               routes/+single-wildcard+ {:post {:handler nil :uri-arg-ks [:asdfsd]}}}}
+         (routes/build-prefix-map
+          (fake-annotated-handlers
+           "/a/b/:**" :get
+           "/a/b/:**" :post
+           "/a/:asdfsd/" :post))))
+  (testing "duplicate routes"
+    (is (thrown? Exception (routes/build-prefix-map
+                            (fake-annotated-handlers "/a/:bsdf" :get "/a/:asdfsd/" :get)))))
+  (testing "non-final wildcard"
+    (is (thrown? Exception (routes/build-prefix-map (fake-annotated-handlers "/a/:**/:bsdf" :get))))))
+
 (deftest prefix-lookup-test
   (let [leaf (fn [x] {:get x})
         result (fn [match-result value]

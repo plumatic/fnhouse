@@ -4,6 +4,7 @@
   (:require
    [clojure.string :as str]
    [schema.core :as s]
+   [plumbing.fnk.schema :as fnk-schema]
    [plumbing.map :as map]
    [fnhouse.schemas :as schemas]))
 
@@ -31,6 +32,8 @@
         (split-path path)))
 
 (s/defn match-tokens :- [(s/either String (s/enum +single-wildcard+ +multiple-wildcard+))]
+  "Parse a declared handler path into a token sequence for efficient route matching,
+   where equivalent uri arg types are collapsed to a single token."
   [^String path]
   (map (fn [^String segment]
          (cond
@@ -42,19 +45,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Private: building and matching in efficient routing trees
 
-(defn build-prefix-map [annotated-handlers]
-  (map/unflatten ;; TODO: assert-distinct, and multi-wildcard only in final position
-   (for [annotated-handler annotated-handlers]
-     (letk [[handler [:info path method]] annotated-handler]
-       [(concat (match-tokens path) [method])
-        {:handler handler
-         :uri-arg-ks (uri-arg-ks path)}]))))
+(defn build-prefix-map
+  "Build a prefix map from a set of handlers, for efficient request routing via prefix-lookup."
+  [annotated-handlers]
+  (let [flat-entries (for [annotated-handler annotated-handlers]
+                       (letk [[handler [:info path method]] annotated-handler]
+                         [(concat (match-tokens path) [method])
+                          {:handler handler
+                           :uri-arg-ks (uri-arg-ks path)}]))
+        dups (->> flat-entries (map first)
+                  frequencies
+                  (keep (fn [[path c]] (when (> c 1) path)))
+                  seq)]
+    (fnk-schema/assert-iae (empty? dups) "Multiple routes for pattern: %s" (vec dups))
+    (doseq [path (map first flat-entries)]
+      (fnk-schema/assert-iae (not (some #{+multiple-wildcard+} (drop-last 2 path)))
+                             "Path contains non-terminal multiple wildcard: %s" path))
+    (map/unflatten flat-entries)))
 
 (s/defn prefix-lookup
   "Recursively looks up the specified path starting at the given node.
    If there is a handler located at the specified path,
-    returns the handler and the matching path segments, grouping the multiple segments
-    that match a multiple-wildcard into a single seq.
+    returns the handler and a seq of String path segments matching each uri-arg.
     Multiple-wildcards can only appear above the leaf.
 
    At each level, the lookup prioritizes literal matches over single-wildcards,

@@ -94,6 +94,10 @@
       (fnk-schema/assert-iae
        (or (not (boolean body)) (boolean (#{:post :put} method)))
        "Body only allowed in post or put method in %s" (source-map->str source-map))
+      (fnk-schema/assert-iae
+       (every? #{:resources :request s/Keyword} (keys (pfnk/input-schema @var)))
+       "Disallowed non- :request or :resources bindings in %s: %s"
+       (source-map->str source-map) (keys (pfnk/input-schema @var)))
       info)))
 
 
