@@ -33,7 +33,7 @@
 ;; Helper Methods
 
 (defn var->annotated-handler [var & [resources]]
-  {:info (handlers/var->info "" var (constantly nil))
+  {:info (handlers/var->handler-info "" var (constantly nil))
    :handler (fn [request] (@var {:resources resources :request request}))})
 
 (defn wrap [middleware var]
