@@ -22,10 +22,11 @@
     [:body body-arg :- s/Keyword]
     [:uri-args uri-arg :- s/Int]
     [:query-params qp1 :- String {qp2 :- s/Int 3}]]
-   [:resources data-store]]
+   [:resources data-store :as resources]]
   (swap! data-store
          conj
-         {:body-arg body-arg
+         {:resource-keys (keys resources)
+          :body-arg body-arg
           :uri-arg uri-arg
           :qp1 qp1
           :qp2 qp2})
@@ -35,7 +36,7 @@
   (let [annotation-fn (fn-> meta (select-keys [:auth-level :private]))
         handlers-fn (handlers/nss->handlers-fn {"my-test" 'fnhouse.handlers-test} annotation-fn)
         data-store (atom [])
-        annotated-handlers (handlers-fn {:data-store data-store})]
+        annotated-handlers (handlers-fn {:data-store data-store :more-junk 117})]
     (letk [[handler
             [:info resources responses method path description annotations
              [:request uri-args body query-params]]]
@@ -57,7 +58,7 @@
        {:body {:body-arg :xx}
         :uri-args {:uri-arg 1}
         :query-params {:qp1 "x"}})
-      (is (= {:uri-arg 1 :qp1 "x" :qp2 3 :body-arg :xx}
+      (is (= {:uri-arg 1 :qp1 "x" :qp2 3 :body-arg :xx :resource-keys [:data-store]}
              (singleton @data-store))))))
 
 (use-fixtures :once schema-test/validate-schemas)

@@ -2,6 +2,7 @@
   "Utilities for turning a set of fns into handlers.
    A fn is a handler iff it is a fn with methods in metadata.
    TODO
+   Selecting top-level resources.
 
 "
   (:use plumbing.core)
@@ -109,13 +110,14 @@
    to a set of normal AnnotatedHandlers with appropriate resources injected."
   [proto-handlers :- [AnnotatedProtoHandler]]
   (pfnk/fn->fnk
-   (fn [resources]
+   (fn [all-resources]
      (for [proto-handler proto-handlers]
        (letk [[proto-handler info] proto-handler]
-         {:info info
-          :handler (pfnk/fn->fnk
-                    (fn [request] (proto-handler {:request request :resources resources}))
-                    (update-in (pfnk/io-schemata proto-handler) [0] :request {}))})))
+         (let [resources (select-keys all-resources (keys (:resources (pfnk/input-schema proto-handler))))]
+           {:info info
+            :handler (pfnk/fn->fnk
+                      (fn [request] (proto-handler {:request request :resources resources}))
+                      (update-in (pfnk/io-schemata proto-handler) [0] :request {}))}))))
    [(->> proto-handlers
          (map #(:resources (pfnk/input-schema (:proto-handler %)) {}))
          (reduce fnk-schema/union-input-schemata {}))
