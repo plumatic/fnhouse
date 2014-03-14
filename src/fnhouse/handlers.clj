@@ -9,7 +9,7 @@
 
    By default, the name of the function specifies the path and method of
    the handler (overridable with :path and :method metadata).  The handler
-   must also be annotated with  metadata describing schemas [2] for the required
+   must also be annotated with metadata describing schemas [2] for the required
    resources, key portions of the request (uri-args, query-params and body),
    and response bodies.
 
@@ -47,8 +47,9 @@
    This is a handler that accepts POSTS at URIs like /hammock/12/ideas,
    with an optional Boolean query-param hard?, and a body that matches the
    Idea schema, adds the Idea to hammock 12, and returns the list of all
-   current idease at hammock 12.  The state of ideas is maintained in ideas-atom,
-   which is explicitly passed in as a parameter.
+   current ideas at hammock 12.  The state of ideas is maintained in ideas-atom,
+   which is explicitly passed in as a resource (assigned the default schema
+   of s/Any by defnk).
 
    This handler can be called as an ordinary Clojure function (i.e., in tests),
    and runtime schema checking can be turned on following instructions in [2].
@@ -64,14 +65,16 @@
      - Turning the full API into a normal Ring handler using fnhouse.routes
      - Enabling schema checking and coercion using fnhouse.middleware
        (so, e.g., the Long id in uri-args is automatically parsed for you)
-     - Producing minimal API docs on the web
-     - Generating full client libraries for ClojureScript and Objective C.
+     - Producing minimal API docs
+     - Generating model classes and client libraries for ClojureScript and
+       Objective C using, e.g., coax [4]
 
    For a complete example, see the included 'examples/guesthouse' project.
 
    [1] https://github.com/ring-clojure
    [2] https://github.com/prismatic/schema
-   [3] https://github.com/prismatic/plumbing"
+   [3] https://github.com/prismatic/plumbing
+   [4] https://github.com/prismatic/coax"
   (:use plumbing.core)
   (:require
    [clojure.string :as str]
@@ -111,14 +114,13 @@
 
 (s/defn ^:private path-and-method
   "Extract the path and method from the var name, or :path & :method
-   overrides in metadata."
+   overrides in metadata.  (You must pass both overrides, or neither)."
   [var :- Var]
-  (let [var-name (-> var meta (safe-get :name) name)
-        last-idx (.lastIndexOf var-name *path-separator*)]
-    (merge
-     {:path (-> var-name (subs 0 last-idx) (str/replace *path-separator* "/") ensure-leading-slash)
-      :method (-> var-name (subs (inc last-idx)) str/lower-case keyword)}
-     (select-keys (meta var) [:path :method]))))
+  (or (not-empty (select-keys (meta var) [:path :method]))
+      (let [var-name (-> var meta (safe-get :name) name)
+            last-idx (.lastIndexOf var-name *path-separator*)]
+        {:path (-> var-name (subs 0 last-idx) (str/replace *path-separator* "/") ensure-leading-slash)
+         :method (-> var-name (subs (inc last-idx)) str/lower-case keyword)})))
 
 (s/defn ^:private source-map
   [var :- Var]

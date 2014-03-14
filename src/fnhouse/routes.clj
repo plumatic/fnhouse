@@ -15,11 +15,12 @@
 
    A path can also contain a single trailing 'wildcard' uri-arg, which
    can match any number of trailing segments in the uri.  For example,
-   /a/:** can match /a, /a/b, or /a/b/c/d.
+   /a/:** can match /a, /a/b, or /a/b/c/d.  The wildcard match is
+   included in the :uri-args in the request, e.g. {:** \"b/c/d\"}.
 
    Routing is performed with an efficient hierarchical algorithm,
-   which operates in O(1) time (in the number of handlers) for exact
-   matches, and be much better than a linear traversal of all methods
+   whose runtime is independent of the number of handler for exact
+   matches, and can be much better than a linear traversal of all methods
    in almost every situation.
 
    If multiple handlers can match a URI, the precedence rules are

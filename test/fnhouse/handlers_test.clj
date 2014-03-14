@@ -5,12 +5,17 @@
    [schema.test :as schema-test]
    [fnhouse.handlers :as handlers]))
 
-(defn $path$to$my$method$get [] nil)
+(defn $path$to$my$method$GET [] nil)
+
+(defn overridden-path-and-method {:path "/path/override" :method :post} [] nil)
 
 (deftest path-and-method-test
   (is (= {:path "/path/to/my/method"
           :method :get}
-         (#'handlers/path-and-method #'$path$to$my$method$get))))
+         (#'handlers/path-and-method #'$path$to$my$method$GET)))
+  (is (= {:path "/path/override"
+          :method :post}
+         (#'handlers/path-and-method #'overridden-path-and-method))))
 
 (defnk ^:private $test$:handler$:uri-arg$POST
   "This is my test handler.

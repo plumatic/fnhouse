@@ -37,8 +37,8 @@
    :response []})
 
 (s/defn coercing-walker
-  "Take a context key, schema, and custom matcher, produce a walker
-   that returns the datum of throws an error for validation failure."
+  "Take a context key, schema, and custom matcher, and produce a walker
+   that returns the datum or throws an error for validation failure."
   [context :- s/Keyword
    schema
    custom-matcher :- RequestRelativeCoercionMatcher]
@@ -62,8 +62,8 @@
             res))))))
 
 (defn request-walker
-  "Given a custom input coercer ( (constantly nil) for none), compile a function for coercing
-   and validating requests (uri-args, query-params, and body)."
+  "Given a custom input coercer, compile a function for coercing and
+   validating requests (uri-args, query-params, and body)."
   [input-coercer handler-info]
   (let [request-walkers (for-map [k [:uri-args :query-params :body]
                                   :let [schema (safe-get-in handler-info [:request k])]
@@ -78,8 +78,9 @@
        request-walkers))))
 
 (defn response-walker
-  "Given a custom output coercer ( (constantly nil) for none), compile a function for coercing
-   and validating response bodies."
+  "Given a custom output coercer, compile a function for coercing and
+   validating response bodies.  Other parts of the response map are not
+   validated."
   [output-coercer handler-info]
   (let [response-walkers (map-vals (fn [s] (coercing-walker :response s output-coercer))
                                    (safe-get handler-info :responses))]
@@ -91,10 +92,12 @@
 ;;; Public
 
 (s/defn coercion-middleware :- schemas/AnnotatedHandler
-  "Coerce and validate inputs and outputs.  Use walkers to simultaneously coerce and validate
-   inputs in a generous way (i.e., 1.0 in body will be cast to 1 and validate against a long
-   schema), and outputs will be clientized to match the output schemas as specified by
-   output-coercer."
+  "Coerce and validate inputs and outputs.  Use walkers to
+   simultaneously coerce and validate inputs in a generous way (i.e.,
+   1.0 in body will be cast to 1 in order to validate against a long
+   schema), and outputs will be clientized to match the output schemas
+   as specified by output-coercer.  If custom coercion is not needed,
+   (constantly nil) be passed as a no-op coercer."
   [{:keys [handler info]} :- schemas/AnnotatedHandler
    input-coercer :- RequestRelativeCoercionMatcher
    output-coercer :- RequestRelativeCoercionMatcher]

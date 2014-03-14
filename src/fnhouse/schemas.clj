@@ -39,7 +39,7 @@
 (s/defschema HandlerInfo
   "A schema for information about a specific HTTP handler.
 
-   path is the path to the resource, which can contain wildcards corresponding to uri-args;
+   path is the path to the handler, which can contain wildcards corresponding to uri-args;
    see fnhouse.routes for details.
 
    request describes schemas for the request, broken down into uri-args, query-params, and
@@ -51,9 +51,10 @@
    request (i.e., database handles).
 
    annotations is an arbitrary field that can be used to hold other user-defined fields;
-   for example, authentication requirements or rate-limiting parameters."
+   for example, authentication requirements or rate-limiting parameters.  It can be
+   populated by passing an extra-info-fn to the functions in fnhouse.handlers."
   {;; HTTP-related info
-   :path String
+   :path (s/both String (s/pred #(.startsWith ^String % "/") 'starts-with-slash?))
    :method (s/enum :get :head :post :put :delete)
 
    :description String
