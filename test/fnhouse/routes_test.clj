@@ -58,7 +58,7 @@
              (lookup ["a" "1" "2" "3"]))))
 
     (testing "match consists of a single-wildcard"
-      (is (= (result ["a"] 7)
+      (is (= (result [""] 1)
              (lookup ["a"]))))
 
     (testing "prefer literal to wildcard"
@@ -116,6 +116,10 @@
     (is (= {:uri-arg "1337" :wild-card "wild/card"}
            (h {:request-method :get
                :uri "/test/a/1337/b/wild/card"})))
+
+    (is (= {:uri-arg "1337" :wild-card ""}
+           (h {:request-method :get
+               :uri "/test/a/1337/b/"})))
 
     (is (= {:a "a-match" :b "b-match"}
            (h {:request-method :post

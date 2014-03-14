@@ -1,5 +1,6 @@
 (ns fnhouse.schemas
-  "Defines a schema for HandlerInfo, fnhouse's API description format."
+  "Defines schemas for Handlers and HandlerInfo, fnhouse's API description format.
+   See docstrings below for details."
   (:require
    [plumbing.fnk.schema :as fnk-schema]
    [schema.core :as s]))
@@ -31,21 +32,36 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Handler metadata
 
-(s/defschema ^:private Schema
+(s/defschema Schema
   "A meta-schema that matches Schemas"
   (s/protocol s/Schema))
 
 (s/defschema HandlerInfo
-  "A schema for information about a specific HTTP handler."
+  "A schema for information about a specific HTTP handler.
+
+   path is the path to the handler, which can contain wildcards corresponding to uri-args;
+   see fnhouse.routes for details.
+
+   request describes schemas for the request, broken down into uri-args, query-params, and
+   body (when applicable).
+
+   responses is a mapping from status code to the response body schema for that status.
+
+   resources is a schema for the resources that the handler requires in addition to the
+   request (i.e., database handles).
+
+   annotations is an arbitrary field that can be used to hold other user-defined fields;
+   for example, authentication requirements or rate-limiting parameters.  It can be
+   populated by passing an extra-info-fn to the functions in fnhouse.handlers."
   {;; HTTP-related info
-   :path String
+   :path (s/both String (s/pred #(.startsWith ^String % "/") 'starts-with-slash?))
    :method (s/enum :get :head :post :put :delete)
 
    :description String
 
-   :request {:body (s/maybe Schema)
+   :request {:uri-args {s/Keyword Schema}
              :query-params fnk-schema/InputSchema
-             :uri-args {s/Keyword Schema}}
+             :body (s/maybe Schema)}
    :responses {(s/named s/Int "status code")
                (s/named Schema "response body schema")}
 

@@ -1,9 +1,80 @@
 (ns fnhouse.handlers
-  "Utilities for turning a set of fns into handlers.
-   A fn is a handler iff it is a fn with methods in metadata.
-   TODO
+  "Utilities for turning a set of fnhouse handlers into an API description.
 
-"
+   A fnhouse handler is an ordinary Clojure function that accepts a map
+   with two keys:
+
+     :request is a Ring-style request [1] (see fnhouse.schemas/Request)
+     :resources is an arbitrary map of resources (e.g., database handles).
+
+   By default, the name of the function specifies the path and method of
+   the handler (overridable with :path and :method metadata).  The handler
+   must also be annotated with metadata describing schemas [2] for the required
+   resources, key portions of the request (uri-args, query-params and body),
+   and response bodies.
+
+   The simplest way to specify this data is to use a `defnk` from
+   plumbing.core [2], which can simultaneously destructure items from the
+   resources and request, and produce the necessary corresponding schema
+   annotations.
+
+   For example, here is an example of a minimal fnhouse handler:
+
+   (defnk unimaginative$GET
+     {:responses {200 String}}
+     []
+     {:body \"Hello, world!\"})
+
+   which defines a GET handler at path /unimaginative, which always returns
+   the string \"Hello, world!\".
+
+   A more complex example that illustrates most of the features of fnhouse:
+
+   (s/defschema Idea {:name String :difficulty Double})
+
+   (defn hammock$:id$ideas$POST
+     \"Save a new idea to hammock :id, and return the list of existing ideas\"
+     {:responses {200 [Idea]}}
+     [[:request
+       [:uri-args id :- Long]
+       [:query-params {hard? :- Boolean false}]
+       body :- Idea]
+      [:resources ideas-atom]]
+     {:body ((swap! ideas-atom update-in [id] conj
+                    (if hard? (update-in idea [:difficulty] * 2) idea))
+             id)})
+
+   This is a handler that accepts POSTS at URIs like /hammock/12/ideas,
+   with an optional Boolean query-param hard?, and a body that matches the
+   Idea schema, adds the Idea to hammock 12, and returns the list of all
+   current ideas at hammock 12.  The state of ideas is maintained in ideas-atom,
+   which is explicitly passed in as a resource (assigned the default schema
+   of s/Any by defnk).
+
+   This handler can be called as an ordinary Clojure function (i.e., in tests),
+   and runtime schema checking can be turned on following instructions in [2].
+
+   The handler can also be turned into an API description by calling nss->handlers-fn
+   (or related functions) and then passing in the map of resources, like:
+
+   ((nss->handlers-fn {\"\" 'my-namespace})
+    {:ideas-atom (atom {})})
+
+   With this API description, you can do many things.  Out of the box, there is support
+   for:
+     - Turning the full API into a normal Ring handler using fnhouse.routes
+     - Enabling schema checking and coercion using fnhouse.middleware
+       (so, e.g., the Long id in uri-args is automatically parsed for you)
+     - Producing minimal API docs
+     - Generating model classes and client libraries for ClojureScript and
+       Objective C using, e.g., coax [4]
+
+   For a complete example, see the included 'examples/guesthouse' project.
+
+   [1] https://github.com/ring-clojure
+   [2] https://github.com/prismatic/schema
+   [3] https://github.com/prismatic/plumbing
+   [4] https://github.com/prismatic/coax"
   (:use plumbing.core)
   (:require
    [clojure.string :as str]
@@ -13,7 +84,6 @@
    [fnhouse.schemas :as schemas]
    [fnhouse.routes :as routes])
   (:import [clojure.lang Symbol Var]))
-
 
 (def ^:dynamic ^String *path-separator*
   "The string to be used as a path separator in fnhouse fn names."
@@ -37,16 +107,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extracting handler info from a fnhouse handler var
 
+(defn ^:private ensure-leading-slash [^String s]
+  (if (.startsWith s "/")
+    s
+    (str "/" s)))
+
 (s/defn ^:private path-and-method
   "Extract the path and method from the var name, or :path & :method
-   overrides in metadata."
+   overrides in metadata.  (You must pass both overrides, or neither)."
   [var :- Var]
-  (let [var-name (-> var meta (safe-get :name) name)
-        last-idx (.lastIndexOf var-name *path-separator*)]
-    (merge
-     {:path (-> var-name (subs 0 last-idx) (str/replace *path-separator* "/"))
-      :method (-> var-name (subs (inc last-idx)) str/lower-case keyword)}
-     (select-keys (meta var) [:path :method]))))
+  (or (not-empty (select-keys (meta var) [:path :method]))
+      (let [var-name (-> var meta (safe-get :name) name)
+            last-idx (.lastIndexOf var-name *path-separator*)]
+        {:path (-> var-name (subs 0 last-idx) (str/replace *path-separator* "/") ensure-leading-slash)
+         :method (-> var-name (subs (inc last-idx)) str/lower-case keyword)})))
 
 (s/defn ^:private source-map
   [var :- Var]
@@ -59,10 +133,8 @@
   (format "%s/%s (%s:%s)" ns name file line))
 
 (s/defn var->handler-info :- schemas/HandlerInfo
-  "Extract the handler info for the function referred to by the specified var.
-   Path and method override can be specified in metadata. TODO"
-  [path-prefix :- String
-   var :- Var
+  "Extract the handler info for the function referred to by the specified var."
+  [var :- Var
    extra-info-fn]
   (letk [[method path] (path-and-method var)
          [{doc ""} {responses {}}] (meta var)
@@ -70,10 +142,10 @@
          [{uri-args {}} {body nil} {query-params {}}] request]
     (let [source-map (source-map var)
           explicit-uri-args (dissoc uri-args s/Keyword)
-          full-path (str path-prefix path)
-          declared-args (set (routes/uri-arg-ks full-path)) ;; TODO: assert distinct
+          raw-declared-args (routes/uri-arg-ks path)
+          declared-args (set raw-declared-args)
           undeclared-args (remove declared-args (keys explicit-uri-args))
-          info {:path full-path
+          info {:path path
                 :method method
                 :description doc
                 :request {:query-params query-params
@@ -98,6 +170,9 @@
        (every? #{:resources :request s/Keyword} (keys (pfnk/input-schema @var)))
        "Disallowed non- :request or :resources bindings in %s: %s"
        (source-map->str source-map) (keys (pfnk/input-schema @var)))
+      (fnk-schema/assert-iae
+       (apply distinct? ::sentinel raw-declared-args) "Duplicate uri-args %s in %s"
+       (vec raw-declared-args) (source-map->str source-map))
       info)))
 
 
@@ -106,16 +181,19 @@
 
 (s/defn ^:private curry-resources :- (s/=> [schemas/AnnotatedHandler] Resources)
   "Take a sequence of AnnotatedProtoHandlers and return a function from resources
-   to a set of normal AnnotatedHandlers with appropriate resources injected."
+   to a set of normal AnnotatedHandlers with appropriate resources injected.
+   Each handler only gets the specific top-level resources it asks for in its
+   schema."
   [proto-handlers :- [AnnotatedProtoHandler]]
   (pfnk/fn->fnk
-   (fn [resources]
+   (fn [all-resources]
      (for [proto-handler proto-handlers]
        (letk [[proto-handler info] proto-handler]
-         {:info info
-          :handler (pfnk/fn->fnk
-                    (fn [request] (proto-handler {:request request :resources resources}))
-                    (update-in (pfnk/io-schemata proto-handler) [0] :request {}))})))
+         (let [resources (select-keys all-resources (keys (:resources (pfnk/input-schema proto-handler))))]
+           {:info info
+            :handler (pfnk/fn->fnk
+                      (fn [request] (proto-handler {:request request :resources resources}))
+                      (update-in (pfnk/io-schemata proto-handler) [0] :request {}))}))))
    [(->> proto-handlers
          (map #(:resources (pfnk/input-schema (:proto-handler %)) {}))
          (reduce fnk-schema/union-input-schemata {}))
@@ -124,24 +202,38 @@
 (s/defn ^:private fnhouse-handler? [var :- Var]
   (and (fn? @var) (:responses (meta var))))
 
+(s/defn apply-path-prefix :- schemas/HandlerInfo
+  "Add a prefix to handler-info, which must consist of one or more complete path
+   segments without URI args."
+  [handler-info :- schemas/HandlerInfo prefix :- String]
+  (fnk-schema/assert-iae
+   (empty? (routes/uri-arg-ks prefix)) "Path prefix %s cannot contain uri args" prefix)
+  (update-in handler-info [:path] (partial str (ensure-leading-slash prefix))))
+
 (s/defn ns->handler-fns :- [AnnotatedProtoHandler]
-  "Take a path prefix and namespace, return a seq of all the functions
-   can be converted to handlers in the namespace along with their handler info."
-  [path-prefix :- String
-   ns-sym :- Symbol
+  "Take a namespace, return a seq of all the AnnotatedProtoHandlers corresponding to
+   fnhouse handlers in that namespace."
+  [ns-sym :- Symbol
    extra-info-fn]
-  (let [path-prefix (if (seq path-prefix) (str "/" path-prefix) "")]
-    (for [var (vals (ns-interns ns-sym))
-          :when (fnhouse-handler? var)]
-      {:info (var->handler-info path-prefix var extra-info-fn)
-       :proto-handler (pfnk/fn->fnk (fn redefable [m] (@var m))
-                                    (pfnk/io-schemata @var))})))
+  (for [var (vals (ns-interns ns-sym))
+        :when (fnhouse-handler? var)]
+    {:info (var->handler-info var extra-info-fn)
+     :proto-handler (pfnk/fn->fnk (fn redefable [m] (@var m))
+                                  (pfnk/io-schemata @var))}))
 
 (s/defn nss->handlers-fn :- (s/=> schemas/API Resources)
-  "TODO.  path-prefix should be un-slashed."
+  "Take a map from path prefix string to namespace symbol.
+   Sucks up all the fnhouse handlers in each namespace, and prefixes each handler's
+   path with the corresponding path prefix.
+   Finally, curries the resulting set of handlers to produce a function from a map
+   of the union of all resources required by the handlers, to an API description
+   (which is just a sequence of schema/AnnotatedHandlers)."
   [prefix->ns-sym :- {(s/named String "path prefix")
                       (s/named Symbol "namespace")}
    & [extra-info-fn :- (s/=> s/Any Var)]]
   (->> prefix->ns-sym
-       (mapcat (fn [[prefix ns-sym]] (ns->handler-fns prefix ns-sym (or extra-info-fn (constantly nil)))))
+       (mapcat (fn [[prefix ns-sym]]
+                 (map (fn [annotated-handler]
+                        (update-in annotated-handler [:info] apply-path-prefix prefix))
+                      (ns->handler-fns ns-sym (or extra-info-fn (constantly nil))))))
        curry-resources))

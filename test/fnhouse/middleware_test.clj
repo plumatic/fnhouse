@@ -1,8 +1,10 @@
 (ns fnhouse.middleware-test
-  (:use clojure.test plumbing.core fnhouse.middleware)
+  (:use clojure.test plumbing.core)
   (:require
    [schema.core :as s]
-   [fnhouse.handlers :as handlers]))
+   [schema.test :as schema-test]
+   [fnhouse.handlers :as handlers]
+   [fnhouse.middleware :as middleware]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Schemas
@@ -33,7 +35,7 @@
 ;; Helper Methods
 
 (defn var->annotated-handler [var & [resources]]
-  {:info (handlers/var->handler-info "" var (constantly nil))
+  {:info (handlers/var->handler-info var (constantly nil))
    :handler (fn [request] (@var {:resources resources :request request}))})
 
 (defn wrap [middleware var]
@@ -69,7 +71,7 @@
 ;; Handlers
 
 (defnk $custom-coercion-handler$:id$POST
-  {:responses {200 {:body {:qp Long :body Long :uri-arg Long :high HighOutput}}}}
+  {:responses {200 {:qp Long :body Long :uri-arg Long :high HighOutput}}}
   [[:request
     body :- LowInput
     [:uri-args id :- LowInput]
@@ -77,14 +79,14 @@
   {:body {:qp qp :body body :uri-arg id :high 100}})
 
 (defnk test$:some-id$route$:another-id$:interest-id$POST
-  {:responses {200 {:body s/Any}}}
+  {:responses {200 s/Any}}
   [[:request
     [:query-params qp-id :- Long]
     [:uri-args some-id :- Long another-id :- String interest-id :- Interest]]]
   {:body {:some-id some-id :another-id another-id :qp-id qp-id :interest-id interest-id}})
 
 (defnk schema-check-handler$POST
-  {:responses {200 {:body {:some-id Long (s/optional-key :keyword) s/Keyword}}}}
+  {:responses {200 {:some-id Long (s/optional-key :keyword) s/Keyword}}}
   [[:request
     {query-params {}}
     [:body bool :- boolean long :- Long double :- Double string :- String
@@ -92,12 +94,12 @@
   {:body (merge {:some-id 123} (when keyword {:keyword keyword}) query-params)})
 
 (defnk schema-check-handler$GET
-  {:responses {200 {:body {:some-id Long (s/optional-key :keyword) s/Keyword}}}}
+  {:responses {200 {:some-id Long (s/optional-key :keyword) s/Keyword}}}
   [[:request {query-params {}}]]
   {:body (merge {:some-id 123} query-params)})
 
 (defnk test$:some-id$route$:another-id$:interest-id$GET
-  {:responses {200 {:body s/Any}}}
+  {:responses {200 s/Any}}
   [[:request
     [:query-params qp-id :- Long]
     [:uri-args some-id :- Long another-id :- String interest-id :- Interest]]]
@@ -115,13 +117,13 @@
         output-coercer (fn [schema]
                          (when (= schema HighOutput)
                            (fn [request x] (dec x))))
-        middleware (coercion-middleware input-coercer output-coercer)
+        middleware #(middleware/coercion-middleware % input-coercer output-coercer)
         handler (wrap middleware #'$custom-coercion-handler$:id$POST)]
     (is (= {:uri-arg 12 :qp 23 :body 34 :high 99}
            (do-post handler {:uri-args {:id "11"} :query-params {:qp "22"} :body 33})))))
 
 (deftest coercion-middleware-test
-  (let [middleware (coercion-middleware interest-coercer (constantly nil))]
+  (let [middleware #(middleware/coercion-middleware % interest-coercer (constantly nil))]
     (is (= {:some-id 12 :another-id "34" :qp-id 666 :interest-id clojure-interest}
            (do-get (wrap middleware #'test$:some-id$route$:another-id$:interest-id$GET)
                    {:uri-args {:some-id "12" :another-id "34" :interest-id (:id clojure-interest)}
@@ -137,3 +139,5 @@
                       {:body {:bool true :long 1.0 :double 1.0 :string "cats" :keyword "keywordize-me"}})))
       (is (thrown? Throwable (do-post post-schema-check-handler
                                       {:body {:bool true :long "1" :double 1.0 :string "cats"}}))))))
+
+(use-fixtures :once schema-test/validate-schemas)
