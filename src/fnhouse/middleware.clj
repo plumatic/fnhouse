@@ -9,32 +9,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Private
 
-(def ^:private ^:dynamic *request*
-  "Dynamic var used to propagate the request into the walk."
-  ::error)
-
-(defn bind-request
-  "Compile a function from schema to (fn [request parsed-json]) to data
-   into a schema.coerce/CoercionMatcher that doesn't need a request, but must
-   be called within error-wrap."
-  [coercer]
-  (memoize (fn [schema] (when-let [c (coercer schema)] #(c *request* %)))))
-
-(defn error-wrap
+(defn coercing-walker
   "Take a context key and walker, and produce a function that walks a datum and returns a
    successful walk or throws an error for a walk that fails validation."
-  [context walker]
-  (fn [request data]
-    (let [res (binding [*request* request] (walker data))]
-      (if-let [error (utils/error-val res)]
-        (throw (ex-info
-                (format "Request: [%s]<BR>==> Error: [%s]<BR>==> Context: [%s]"
-                        (pr-str (select-keys request [:uri :query-string :body]))
-                        (pr-str error)
-                        context)
-                {:type :schema-error
-                 :error error}))
-        res))))
+  [context schema custom-matcher normal-matchers]
+  (with-local-vars [request-ref ::missing] ;; used to pass request through to custom coercers.
+    (let [walker (->> (cons
+                       (fn [schema] (when-let [c (custom-matcher schema)] #(c @request-ref %)))
+                       normal-matchers)
+                      vec
+                      coerce/first-matcher
+                      (coerce/coercer schema))]
+      (fn [request data]
+        (let [res (with-bindings {request-ref request} (walker data))]
+          (if-let [error (utils/error-val res)]
+            (throw (ex-info
+                    (format "Request: [%s]<BR>==> Error: [%s]<BR>==> Context: [%s]"
+                            (pr-str (select-keys request [:uri :query-string :body]))
+                            (pr-str error)
+                            context)
+                    {:type :schema-error
+                     :error error}))
+            res))))))
 
 (defn request-walker
   "Given resources from the service and handler metadata, compile a
@@ -42,24 +38,19 @@
    query-params, and body).  Coercion is extensible by defining an
    implementation of 'coercer' above for your function."
   [input-coercer handler-info]
-  (let [request (safe-get handler-info :request)
-        coercion-matcher (bind-request input-coercer)
-        string-matcher (coerce/first-matcher [coercion-matcher coerce/string-coercion-matcher])
-        json-matcher (coerce/first-matcher [coercion-matcher coerce/json-coercion-matcher])
-        walker (for-map [[request-key schema] request :when schema]
-                 request-key
-                 (->> (case request-key
-                        :body json-matcher
-                        (:uri-args :query-params) string-matcher)
-                      (coerce/coercer schema)
-                      (error-wrap request-key)))]
+  (let [request-walkers (for-map [[k coercer] {:uri-args coerce/string-coercion-matcher
+                                               :query-params coerce/string-coercion-matcher
+                                               :body coerce/json-coercion-matcher}
+                                  :let [schema (safe-get-in handler-info [:request k])]
+                                  :when schema]
+                          k
+                          (coercing-walker k schema input-coercer [coercer]))]
     (fn [request]
-      (merge-with
-       (fn [walker field] (walker request field))
-       walker request))))
-
-
-;;; TODO: don't hardcode json coercion
+      (reduce-kv
+       (fn [request request-key walker]
+         (update-in request [request-key] (partial walker request)))
+       request
+       request-walkers))))
 
 (defn response-walker
   "Given resources from the service (determined by keys asked for in v2 middleware)
@@ -67,24 +58,11 @@
    this API method.  Coercion is extensible by defining an implementation of
    'coercer' above for your function."
   [output-coercer handler-info]
-  (letk [[responses] handler-info]
-    (let [coercion-matcher (bind-request output-coercer)
-          response-walkers
-          (map-vals
-           (fn [resp-schema]
-             (assert (contains? resp-schema :body)
-                     (format "Response %s for %s missing body"
-                             resp-schema handler-info))
-             (->> coercion-matcher
-                  (coerce/coercer (:body resp-schema))
-                  (error-wrap :response)))
-           responses)]
-      (fn [request response]
-        (update-in
-         response [:body]
-         (-> response-walkers
-             (safe-get (response :status 200))
-             (partial request)))))))
+  (let [response-walkers (map-vals (fn [s] (coercing-walker :response s output-coercer nil))
+                                   (safe-get handler-info :responses))]
+    (fn [request response]
+      (let [walker (safe-get response-walkers (response :status 200))]
+        (update-in response [:body] (partial walker request))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public

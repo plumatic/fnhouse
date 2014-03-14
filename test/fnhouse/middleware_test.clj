@@ -69,7 +69,7 @@
 ;; Handlers
 
 (defnk $custom-coercion-handler$:id$POST
-  {:responses {200 {:body {:qp Long :body Long :uri-arg Long :high HighOutput}}}}
+  {:responses {200 {:qp Long :body Long :uri-arg Long :high HighOutput}}}
   [[:request
     body :- LowInput
     [:uri-args id :- LowInput]
@@ -77,14 +77,14 @@
   {:body {:qp qp :body body :uri-arg id :high 100}})
 
 (defnk test$:some-id$route$:another-id$:interest-id$POST
-  {:responses {200 {:body s/Any}}}
+  {:responses {200 s/Any}}
   [[:request
     [:query-params qp-id :- Long]
     [:uri-args some-id :- Long another-id :- String interest-id :- Interest]]]
   {:body {:some-id some-id :another-id another-id :qp-id qp-id :interest-id interest-id}})
 
 (defnk schema-check-handler$POST
-  {:responses {200 {:body {:some-id Long (s/optional-key :keyword) s/Keyword}}}}
+  {:responses {200 {:some-id Long (s/optional-key :keyword) s/Keyword}}}
   [[:request
     {query-params {}}
     [:body bool :- boolean long :- Long double :- Double string :- String
@@ -92,12 +92,12 @@
   {:body (merge {:some-id 123} (when keyword {:keyword keyword}) query-params)})
 
 (defnk schema-check-handler$GET
-  {:responses {200 {:body {:some-id Long (s/optional-key :keyword) s/Keyword}}}}
+  {:responses {200 {:some-id Long (s/optional-key :keyword) s/Keyword}}}
   [[:request {query-params {}}]]
   {:body (merge {:some-id 123} query-params)})
 
 (defnk test$:some-id$route$:another-id$:interest-id$GET
-  {:responses {200 {:body s/Any}}}
+  {:responses {200 s/Any}}
   [[:request
     [:query-params qp-id :- Long]
     [:uri-args some-id :- Long another-id :- String interest-id :- Interest]]]
