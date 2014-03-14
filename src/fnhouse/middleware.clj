@@ -1,5 +1,15 @@
 (ns fnhouse.middleware
-  "Middleware for coercing and schema-validating requests and responses."
+  "Middleware for coercing and schema-validating requests and responses.
+
+   By default -- passing (constantly nil) for input-coercer and output-coercer --
+   ordinary schema validation is applied, with default string coercion for input uri-args
+   and query-params and json coercion for the body (see schema.coerce).  Schema
+   validation errors will throw with a helpful error message.
+
+   In addition, custom RequestRelativeCoercionMatchers can be passed for input and
+   output coercion, which enable the coercion of custom types in the input and output.
+
+   For examples, see the included 'examples/guesthouse' project."
   (:use plumbing.core)
   (:require
    [schema.coerce :as coerce]
@@ -18,17 +28,24 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Private
 
+(def ^:dynamic *default-matchers*
+  "Default coercion matchers for request keys/responses.  Can be rebound for now,
+   better API for specifying matchers is TBD."
+  {:uri-args [coerce/string-coercion-matcher]
+   :query-params [coerce/string-coercion-matcher]
+   :body [coerce/json-coercion-matcher]
+   :response []})
+
 (s/defn coercing-walker
-  "Take a context key, schema, custom matcher, and seq of normal matchers, produce a walker
+  "Take a context key, schema, and custom matcher, produce a walker
    that returns the datum of throws an error for validation failure."
   [context :- s/Keyword
    schema
-   custom-matcher :- RequestRelativeCoercionMatcher
-   normal-matchers :- [coerce/CoercionMatcher]]
+   custom-matcher :- RequestRelativeCoercionMatcher]
   (with-local-vars [request-ref ::missing] ;; used to pass request through to custom coercers.
     (let [walker (->> (cons
                        (fn [schema] (when-let [c (custom-matcher schema)] #(c @request-ref %)))
-                       normal-matchers)
+                       (safe-get *default-matchers* context))
                       vec
                       coerce/first-matcher
                       (coerce/coercer schema))]
@@ -48,13 +65,11 @@
   "Given a custom input coercer ( (constantly nil) for none), compile a function for coercing
    and validating requests (uri-args, query-params, and body)."
   [input-coercer handler-info]
-  (let [request-walkers (for-map [[k coercer] {:uri-args coerce/string-coercion-matcher
-                                               :query-params coerce/string-coercion-matcher
-                                               :body coerce/json-coercion-matcher}
+  (let [request-walkers (for-map [k [:uri-args :query-params :body]
                                   :let [schema (safe-get-in handler-info [:request k])]
                                   :when schema]
                           k
-                          (coercing-walker k schema input-coercer [coercer]))]
+                          (coercing-walker k schema input-coercer))]
     (fn [request]
       (reduce-kv
        (fn [request request-key walker]
@@ -66,7 +81,7 @@
   "Given a custom output coercer ( (constantly nil) for none), compile a function for coercing
    and validating response bodies."
   [output-coercer handler-info]
-  (let [response-walkers (map-vals (fn [s] (coercing-walker :response s output-coercer nil))
+  (let [response-walkers (map-vals (fn [s] (coercing-walker :response s output-coercer))
                                    (safe-get handler-info :responses))]
     (fn [request response]
       (let [walker (safe-get response-walkers (response :status 200))]

@@ -32,6 +32,12 @@
           :qp2 qp2})
   {:body {:success? true}})
 
+(deftest var->handler-info-test
+  (testing "duplicate uri-args fail"
+    (defnk $:a$:a$GET {:responses {200 s/Any}} [])
+    (is (thrown? Exception (handlers/var->handler-info #'$:a$:a$GET)))
+    (ns-unmap 'fnhouse.handlers-test '$:a$:a$GET)))
+
 (deftest nss->handlers-fn-test
   (let [annotation-fn (fn-> meta (select-keys [:auth-level :private]))
         handlers-fn (handlers/nss->handlers-fn {"my-test" 'fnhouse.handlers-test} annotation-fn)
