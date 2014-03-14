@@ -31,7 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Handler metadata
 
-(s/defschema ^:private Schema
+(s/defschema Schema
   "A meta-schema that matches Schemas"
   (s/protocol s/Schema))
 

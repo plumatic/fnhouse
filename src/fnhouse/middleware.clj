@@ -1,18 +1,30 @@
 (ns fnhouse.middleware
-  "Middleware for coercing and schema-validating inputs and outputs of the API."
+  "Middleware for coercing and schema-validating requests and responses."
   (:use plumbing.core)
   (:require
    [schema.coerce :as coerce]
    [schema.core :as s]
-   [schema.utils :as utils]))
+   [schema.utils :as utils]
+   [fnhouse.schemas :as schemas]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Public Schemas
+
+(s/defschema RequestRelativeCoercionMatcher
+  "A coerce/CoercionMatcher whose data coercion function also takes the request.  Useful
+   for, e.g., client-relative presentation rules, expanding relative urls, etc."
+  (s/=> (s/maybe (s/=> s/Any schemas/Request s/Any)) schemas/Schema))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Private
 
-(defn coercing-walker
-  "Take a context key and walker, and produce a function that walks a datum and returns a
-   successful walk or throws an error for a walk that fails validation."
-  [context schema custom-matcher normal-matchers]
+(s/defn coercing-walker
+  "Take a context key, schema, custom matcher, and seq of normal matchers, produce a walker
+   that returns the datum of throws an error for validation failure."
+  [context :- s/Keyword
+   schema
+   custom-matcher :- RequestRelativeCoercionMatcher
+   normal-matchers :- [coerce/CoercionMatcher]]
   (with-local-vars [request-ref ::missing] ;; used to pass request through to custom coercers.
     (let [walker (->> (cons
                        (fn [schema] (when-let [c (custom-matcher schema)] #(c @request-ref %)))
@@ -33,10 +45,8 @@
             res))))))
 
 (defn request-walker
-  "Given resources from the service and handler metadata, compile a
-   function for coercing and validating inputs (uri-args,
-   query-params, and body).  Coercion is extensible by defining an
-   implementation of 'coercer' above for your function."
+  "Given a custom input coercer ( (constantly nil) for none), compile a function for coercing
+   and validating requests (uri-args, query-params, and body)."
   [input-coercer handler-info]
   (let [request-walkers (for-map [[k coercer] {:uri-args coerce/string-coercion-matcher
                                                :query-params coerce/string-coercion-matcher
@@ -53,10 +63,8 @@
        request-walkers))))
 
 (defn response-walker
-  "Given resources from the service (determined by keys asked for in v2 middleware)
-   and handler metadata, compile a function for coercing and validating responses from
-   this API method.  Coercion is extensible by defining an implementation of
-   'coercer' above for your function."
+  "Given a custom output coercer ( (constantly nil) for none), compile a function for coercing
+   and validating response bodies."
   [output-coercer handler-info]
   (let [response-walkers (map-vals (fn [s] (coercing-walker :response s output-coercer nil))
                                    (safe-get handler-info :responses))]
@@ -67,19 +75,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
 
-(defn coercion-middleware
+(s/defn coercion-middleware :- schemas/AnnotatedHandler
   "Coerce and validate inputs and outputs.  Use walkers to simultaneously coerce and validate
    inputs in a generous way (i.e., 1.0 in body will be cast to 1 and validate against a long
-   schema), and outputs will be clientized to match the output schemas."
-  [input-coercer output-coercer]
-  (fnk [info :as annotated-handler]
-    (let [request-walker (request-walker input-coercer info)
-          response-walker (response-walker output-coercer info)]
-      (update-in
-       annotated-handler [:handler]
-       (fn [handler]
-         (fn [request]
-           (let [walked-request (request-walker request)]
-             (->> walked-request
-                  handler
-                  (response-walker walked-request)))))))))
+   schema), and outputs will be clientized to match the output schemas as specified by
+   output-coercer."
+  [{:keys [handler info]} :- schemas/AnnotatedHandler
+   input-coercer :- RequestRelativeCoercionMatcher
+   output-coercer :- RequestRelativeCoercionMatcher]
+  (let [request-walker (request-walker input-coercer info)
+        response-walker (response-walker output-coercer info)]
+    {:info info
+     :handler (fn [request]
+                (let [walked-request (request-walker request)]
+                  (->> walked-request
+                       handler
+                       (response-walker walked-request))))}))

@@ -1,8 +1,10 @@
 (ns fnhouse.middleware-test
-  (:use clojure.test plumbing.core fnhouse.middleware)
+  (:use clojure.test plumbing.core)
   (:require
    [schema.core :as s]
-   [fnhouse.handlers :as handlers]))
+   [schema.test :as schema-test]
+   [fnhouse.handlers :as handlers]
+   [fnhouse.middleware :as middleware]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Schemas
@@ -115,13 +117,13 @@
         output-coercer (fn [schema]
                          (when (= schema HighOutput)
                            (fn [request x] (dec x))))
-        middleware (coercion-middleware input-coercer output-coercer)
+        middleware #(middleware/coercion-middleware % input-coercer output-coercer)
         handler (wrap middleware #'$custom-coercion-handler$:id$POST)]
     (is (= {:uri-arg 12 :qp 23 :body 34 :high 99}
            (do-post handler {:uri-args {:id "11"} :query-params {:qp "22"} :body 33})))))
 
 (deftest coercion-middleware-test
-  (let [middleware (coercion-middleware interest-coercer (constantly nil))]
+  (let [middleware #(middleware/coercion-middleware % interest-coercer (constantly nil))]
     (is (= {:some-id 12 :another-id "34" :qp-id 666 :interest-id clojure-interest}
            (do-get (wrap middleware #'test$:some-id$route$:another-id$:interest-id$GET)
                    {:uri-args {:some-id "12" :another-id "34" :interest-id (:id clojure-interest)}
@@ -137,3 +139,5 @@
                       {:body {:bool true :long 1.0 :double 1.0 :string "cats" :keyword "keywordize-me"}})))
       (is (thrown? Throwable (do-post post-schema-check-handler
                                       {:body {:bool true :long "1" :double 1.0 :string "cats"}}))))))
+
+(use-fixtures :once schema-test/validate-schemas)
