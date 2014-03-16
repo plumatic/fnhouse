@@ -132,6 +132,9 @@
 (defnk ^:private source-map->str [ns name file line]
   (format "%s/%s (%s:%s)" ns name file line))
 
+(defn ^:private default-map-schema [schema]
+  (if (= schema s/Any) {s/Keyword String} schema))
+
 (s/defn var->handler-info :- schemas/HandlerInfo
   "Extract the handler info for the function referred to by the specified var."
   [var :- Var
@@ -139,16 +142,16 @@
   (letk [[method path] (path-and-method var)
          [{doc ""} {responses {}}] (meta var)
          [{resources {}} {request {}}] (pfnk/input-schema @var)
-         [{uri-args {}} {body nil} {query-params {}}] request]
+         [{uri-args s/Any} {query-params s/Any} {body nil}] request]
     (let [source-map (source-map var)
-          explicit-uri-args (dissoc uri-args s/Keyword)
+          explicit-uri-args (dissoc (default-map-schema uri-args) s/Keyword)
           raw-declared-args (routes/uri-arg-ks path)
           declared-args (set raw-declared-args)
           undeclared-args (remove declared-args (keys explicit-uri-args))
           info {:path path
                 :method method
                 :description doc
-                :request {:query-params query-params
+                :request {:query-params (default-map-schema query-params)
                           :body body
                           :uri-args (merge
                                      (map-from-keys (constantly String) declared-args)
