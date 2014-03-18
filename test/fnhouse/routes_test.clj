@@ -121,9 +121,9 @@
            (h {:request-method :get
                :uri "/test/a/1337/b/"})))
 
-    (is (= {:a "a-match" :b "b-match"}
+    (is (= {:a "a-match" :b "b match"}
            (h {:request-method :post
-               :uri "/test/x/a-match/y/b-match/"})))
+               :uri "/test/x/a-match/y/b%20match/"})))
 
     (is (= {:status 404 :body "Not found."}
            (h {:request-method :get

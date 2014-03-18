@@ -11,12 +11,13 @@
    don't contain slashes for :b and :c.  I.e., it can match
    /a/123/c/asdf but not /a/123/c/ or /a/b1/b2/c/d.  The segments
    matching uri arguments are inserted into the request as :uri-args,
-   for example {:b \"123\" :d \"asdf\"} for /a/123/c/asdf.
+   url-decoded for example {:b \"123\" :d \"asd f\"} for /a/123/c/as%20df.
 
    A path can also contain a single trailing 'wildcard' uri-arg, which
    can match any number of trailing segments in the uri.  For example,
    /a/:** can match /a, /a/b, or /a/b/c/d.  The wildcard match is
-   included in the :uri-args in the request, e.g. {:** \"b/c/d\"}.
+   included in the :uri-args in the request, e.g. {:** \"b/c/d\"},
+   but is not url-decoded.
 
    Routing is performed with an efficient hierarchical algorithm,
    whose runtime is independent of the number of handler for exact
@@ -60,6 +61,11 @@
             (keyword (subs segment 1))))
         (split-path path)))
 
+(defn url-decode
+  "Returns an UTF-8 URL encoded version of the given string."
+  [^String encoded]
+  (java.net.URLDecoder/decode encoded "UTF-8"))
+
 (s/defn match-tokens :- [(s/either String (s/enum +single-wildcard+ +multiple-wildcard+))]
   "Parse a declared handler path into a token sequence for efficient route matching,
    where equivalent uri arg types are collapsed to a single token."
@@ -102,7 +108,7 @@
            (or (when-let [subtree (get node x)]
                  (prefix-lookup subtree xs request-method uri-args))
                (when-let [subtree (get node +single-wildcard+)]
-                 (prefix-lookup subtree xs request-method (conj uri-args x))))
+                 (prefix-lookup subtree xs request-method (conj uri-args (url-decode x)))))
            (when-let [handler (get node request-method)]
              {:uri-args uri-args
               :leaf handler}))
