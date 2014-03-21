@@ -1,6 +1,6 @@
-(ns hayride.handlers.tasks
+(ns guesthouse.handlers.tasks
   (:require
-   [hayride.domain :as domain]))
+   [guesthouse.domain :as domain]))
 
 
 ;; TODO: maybe make paginated?

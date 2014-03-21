@@ -1,4 +1,4 @@
-(ns hayride.core
+(ns guesthouse.core
   (:use plumbing.core)
   (:require
    [fnhouse.handlers :as handlers]

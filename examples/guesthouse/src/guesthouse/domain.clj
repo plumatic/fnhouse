@@ -1,4 +1,4 @@
-(ns hayride.domain
+(ns guesthouse.domain
   (:require [schema.core :as s])
   )
 

@@ -1,5 +1,5 @@
-(ns hayride.core-test
-  (:use plumbing.core clojure.test hayride.core)
+(ns guesthouse.core-test
+  (:use plumbing.core clojure.test guesthouse.core)
   (:require
    [schema.core :as s]
    [plumbing.graph :as graph]
@@ -33,7 +33,7 @@
   {:body {:ack "true"}})
 
 (deftest start-api-test
-  (let [handlers (handlers/nss->handlers-fn {"count" 'hayride.core-test})
+  (let [handlers (handlers/nss->handlers-fn {"count" 'guesthouse.core-test})
         r (graph/run service-graph {})
         server (start-api {:handlers (handlers r)
                            :port 6054
