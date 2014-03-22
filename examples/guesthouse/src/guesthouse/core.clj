@@ -44,7 +44,8 @@
    the 'guesthouse.guestbook namespace, wrap each with a custom
    coercing middleware, and then compile them into a root handler
    that will route requests to the appropriate underlying handler.
-   Then, wrap the root handler in some standard ring middleware."
+   Then, wrap the root handler in some standard ring middleware.
+   When served, the handlers will be hosted at the 'guestbook' prefix."
   [resources]
   (->> resources
        ((handlers/nss->handlers-fn {"guestbook" 'guesthouse.guestbook}))
