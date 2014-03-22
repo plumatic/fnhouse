@@ -10,6 +10,7 @@
   (:require
    [clojure.string :as str]
    [ring.adapter.jetty :as jetty]
+   [fnhouse.docs :as docs]
    [fnhouse.handlers :as handlers]
    [fnhouse.middleware :as middleware]
    [fnhouse.routes :as routes]
@@ -39,6 +40,15 @@
    (constantly nil)
    entry-coercer))
 
+(defn attach-docs [resources prefix->ns-sym]
+  (let [proto-handlers (-> prefix->ns-sym
+                           (assoc "docs" 'fnhouse.docs)
+                           handlers/nss->proto-handlers)
+        all-docs (docs/all-docs (map :info proto-handlers))]
+    (-> resources
+        (assoc :api-docs all-docs)
+        ((handlers/curry-resources proto-handlers)))))
+
 (defn wrapped-root-handler
   "Take the resources, partially apply them to the handlers in
    the 'guesthouse.guestbook namespace, wrap each with a custom
@@ -47,8 +57,7 @@
    Then, wrap the root handler in some standard ring middleware.
    When served, the handlers will be hosted at the 'guestbook' prefix."
   [resources]
-  (->> resources
-       ((handlers/nss->handlers-fn {"guestbook" 'guesthouse.guestbook}))
+  (->> (attach-docs resources {"guestbook" 'guesthouse.guestbook})
        (map custom-coercion-middleware)
        routes/root-handler
        ring/ring-middleware))
