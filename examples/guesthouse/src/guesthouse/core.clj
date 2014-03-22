@@ -1,47 +1,19 @@
 (ns guesthouse.core
   (:use plumbing.core)
   (:require
-   [fnhouse.handlers :as handlers]
    [clojure.string :as str]
+   [ring.adapter.jetty :as jetty]
    [ring.middleware.json :as json]
    [ring.middleware.params :as params]
-   [ring.middleware.keyword-params :as keyword-params]
-   [fnhouse.routes :as routes]
+   [fnhouse.handlers :as handlers]
    [fnhouse.middleware :as middleware]
-   [ring.adapter.jetty :as jetty])
-  (:import
-   [org.mortbay.jetty Server]
-   [org.mortbay.jetty.nio SelectChannelConnector]))
+   [fnhouse.routes :as routes]
+   [guesthouse.guestbook :as guestbook]
+   [guesthouse.schemas :as schemas]))
 
 (set! *warn-on-reflection* true)
 
-#_
-"
-input coercion
-output coercion
-custom input/output coercion
-doc generation
-non-trivial resources
-nesting of subgraphs
-   (instance)
-   (maybe use Leon's )
-   maybe release other stuff (in plumbing or separate)
-URI args
-query params
-bodies in/out
-
-include nice exception printing (e.g. for schema errors)
-
-
-possible example applications:
-- todos
-- twitter clone
-- something fnhouse themed
-
-to find:
-- middleware for json stuff
-"
-
+;; TODO: move ring/jetty stuff into its own file
 
 (defn wrap-exception [f]
   (fn [request]
@@ -51,24 +23,48 @@ to find:
            {:status 500
             :body "Exception caught"}))))
 
-(defn spy-request [f]
-  (fn [request]
-    (println "SPY REQUEST: " request)
-    (f request)))
-
 (defn keywordize-middleware [handler]
   (fn [req]
     (handler
      (update-in req [:query-params] keywordize-map))))
 
-(defnk start-api [handlers & opts]
-  (let [middleware (middleware/coercion-middleware (constantly nil) (constantly nil))]
-    (jetty/run-jetty
-     (-> (routes/root-handler (map middleware handlers))
-         spy-request
-         keywordize-middleware
-         (json/wrap-json-body {:keywords? true})
-         params/wrap-params
-         json/wrap-json-response
-         wrap-exception)
-     opts)))
+(defn ring-middleware [handler]
+  (-> handler
+      keywordize-middleware
+      (json/wrap-json-body {:keywords? true})
+      params/wrap-params
+      json/wrap-json-response
+      wrap-exception))
+
+(def entry-coercer
+  (fn [schema]
+    (when (= schema schemas/ClientEntry)
+      (fn [request x]
+        (let [[first last] (str/split (:name x) #" ")]
+          (-> x
+              (dissoc :name)
+              (assoc :first-name first
+                     :last-name last)))))))
+
+(defn custom-coercion-middleware [handler]
+  (middleware/coercion-middleware
+   handler
+   (constantly nil)
+   entry-coercer))
+
+(defn run-jetty [options handler]
+  (jetty/run-jetty handler options))
+
+
+;; TODO: make defn, options required
+(defnk start-api
+  [resources
+   {options
+    {:port 6054
+     :join? false}}]
+  (->> resources
+       ((handlers/nss->handlers-fn {"guestbook" 'guesthouse.guestbook}))
+       (map custom-coercion-middleware)
+       routes/root-handler
+       ring-middleware
+       (run-jetty options)))
