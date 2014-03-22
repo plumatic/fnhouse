@@ -129,7 +129,7 @@
       (update-in [:name] name)
       (update-in [:ns] str)))
 
-(defnk ^:private source-map->str [ns name file line]
+(defnk source-map->str [ns name file line]
   (format "%s/%s (%s:%s)" ns name file line))
 
 (defn ^:private default-map-schema [schema]
