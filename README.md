@@ -89,16 +89,16 @@ It also defines a handler `$:page$GET` that can serve up the HTML
 
 # Example: Guesthouse
 
-The [guesthouse example](http://github.com/Prismatic/fnhouse/examples/guesthouse/src/guesthouse),
+The [guesthouse example](examples/guesthouse),
   demonstrates how each of the components of fnhouse can be used in order to generate a
   simple, yet fully featured, web service.
 This example project provides a simple guestbook service
   in which clients can add, remove, modify, and search for entries in an online guestbook.
 
 The handlers for the guestbook are all defined in
-[guestbook.clj](http://github.com/Prismatic/fnhouse/examples/guesthouse/src/guesthouse/guestbook.clj).
+[guestbook.clj](examples/guesthouse/src/guesthouse/guestbook.clj).
 To see how the components of fnhouse can be tied together in order to make a
 webserver look at the `start-api` method of
-[core.clj](http://github.com/Prismatic/fnhouse/examples/guesthouse/src/guesthouse/core.clj).
+[core.clj](examples/guesthouse/src/guesthouse/core.clj).
 To see `start-api` in action, check out the corresponding
-[core_test.clj](http://github.com/Prismatic/fnhouse/examples/guesthouse/test/guesthouse/core_test.clj).
+[core_test.clj](examples/guesthouse/test/guesthouse/core_test.clj).
