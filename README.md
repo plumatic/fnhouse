@@ -17,6 +17,7 @@ Here is an example fnhouse handler:
         indexed-entry (assoc body :index entry-id)]
     (swap! guestbook assoc entry-id indexed-entry)
     {:body indexed-entry}))
+```
 
 This handler is implemented in terms of a keyword function (`defnk`) introduced in
   the [Plumbing](https://github.com/Prismatic/plumbing) library.
