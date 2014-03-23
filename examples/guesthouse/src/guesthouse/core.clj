@@ -8,7 +8,6 @@
     6. start a jetty server"
   (:use plumbing.core)
   (:require
-   [clojure.string :as str]
    [ring.adapter.jetty :as jetty]
    [fnhouse.handlers :as handlers]
    [fnhouse.middleware :as middleware]
@@ -17,27 +16,13 @@
    [guesthouse.ring :as ring]
    [guesthouse.schemas :as schemas]))
 
-(set! *warn-on-reflection* true)
-
-(def entry-coercer
-  "A custom output coercer that is used to coerce a server-side Entry
-   into a ClientEntry whenever it appears in a response"
-  (fn [schema]
-    (when (= schema schemas/ClientEntry)
-      (fn [request x]
-        (let [[first last] (str/split (:name x) #" ")]
-          (-> x
-              (dissoc :name)
-              (assoc :first-name first
-                     :last-name last)))))))
-
 (defn custom-coercion-middleware
   "Wrap a handler with the schema coercing middleware"
   [handler]
   (middleware/coercion-middleware
    handler
    (constantly nil)
-   entry-coercer))
+   schemas/entry-coercer))
 
 (defn wrapped-root-handler
   "Take the resources, partially apply them to the handlers in
@@ -59,5 +44,3 @@
   (-> resources
       wrapped-root-handler
       (jetty/run-jetty options)))
-
-(set! *warn-on-reflection* false)

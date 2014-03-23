@@ -1,6 +1,8 @@
 (ns guesthouse.schemas
   "Schemas and constructors that are used in the guesthouse"
-  (:require [schema.core :as s]))
+  (:require
+   [clojure.string :as str]
+   [schema.core :as s]))
 
 (s/defschema EntryData
   "Schema for guestbook entry"
@@ -18,6 +20,18 @@
       (dissoc :name)
       (assoc :first-name String)
       (assoc :last-name String)))
+
+(def entry-coercer
+  "A custom output coercer that is used to coerce a server-side Entry
+   into a ClientEntry whenever it appears in a response"
+  (fn [schema]
+    (when (= schema ClientEntry)
+      (fn [request x]
+        (let [[first last] (str/split (:name x) #" ")]
+          (-> x
+              (dissoc :name)
+              (assoc :first-name first
+                     :last-name last)))))))
 
 (s/defschema Ack
   "Simple acknowledgement for successful requests"
