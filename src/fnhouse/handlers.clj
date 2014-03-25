@@ -182,7 +182,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extracting ProtoHandlers and injecting resources to make them Handlers
 
-(s/defn ^:private curry-resources :- (s/=> [schemas/AnnotatedHandler] Resources)
+(s/defn curry-resources :- (s/=> schemas/API Resources)
   "Take a sequence of AnnotatedProtoHandlers and return a function from resources
    to a set of normal AnnotatedHandlers with appropriate resources injected.
    Each handler only gets the specific top-level resources it asks for in its
@@ -224,19 +224,27 @@
      :proto-handler (pfnk/fn->fnk (fn redefable [m] (@var m))
                                   (pfnk/io-schemata @var))}))
 
-(s/defn nss->handlers-fn :- (s/=> schemas/API Resources)
+(s/defn nss->proto-handlers :- [AnnotatedProtoHandler]
   "Take a map from path prefix string to namespace symbol.
    Sucks up all the fnhouse handlers in each namespace, and prefixes each handler's
-   path with the corresponding path prefix.
-   Finally, curries the resulting set of handlers to produce a function from a map
-   of the union of all resources required by the handlers, to an API description
-   (which is just a sequence of schema/AnnotatedHandlers)."
+   path with the corresponding path prefix. Finally, returns the resulting set of
+   handlers."
   [prefix->ns-sym :- {(s/named String "path prefix")
                       (s/named Symbol "namespace")}
-   & [extra-info-fn :- (s/=> s/Any Var)]]
+   & [extra-info-fn :- (s/maybe (s/=> s/Any Var))]]
   (->> prefix->ns-sym
        (mapcat (fn [[prefix ns-sym]]
                  (map (fn [annotated-handler]
                         (update-in annotated-handler [:info] apply-path-prefix prefix))
-                      (ns->handler-fns ns-sym (or extra-info-fn (constantly nil))))))
-       curry-resources))
+                      (ns->handler-fns ns-sym (or extra-info-fn (constantly nil))))))))
+
+(s/defn nss->handlers-fn :- (s/=> schemas/API Resources)
+  "Partially build an API from a map of prefix string to namespace symbols.
+   Returns a function that takes in the resources needed to construct the API,
+   and gives a seq of AnnotatedHandlers with the resources partialed in."
+  [prefix->ns-sym :- {(s/named String "path prefix")
+                      (s/named Symbol "namespace")}
+   & [extra-info-fn :- (s/=> s/Any Var)]]
+  (-> prefix->ns-sym
+      (nss->proto-handlers extra-info-fn)
+      curry-resources))
