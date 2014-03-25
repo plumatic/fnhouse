@@ -87,6 +87,7 @@
 ;; Test Handlers
 
 (defnk $GET
+  "Root handler"
   {:responses {200 s/Any}}
   []
   {:body "You've hit the root"})
