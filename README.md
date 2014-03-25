@@ -1,3 +1,4 @@
+![fnhouse!](https://raw.github.com/wiki/prismatic/fnhouse/images/fnhouse.jpg)
 fnhouse
 =======
 
