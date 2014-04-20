@@ -122,7 +122,7 @@ We welcome contributions in the form of bug reports and pull requests; please se
 
 # Supported Clojure versions
 
-Fnhouse is currently supported on Clojure 1.5.1.
+Fnhouse is currently supported on Clojure 1.5.1 and 1.6.x.
 
 # License
 
