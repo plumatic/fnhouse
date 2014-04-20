@@ -52,11 +52,15 @@
       (fn [request data]
         (let [res (with-bindings {request-ref request} (walker data))]
           (if-let [error (utils/error-val res)]
-            (throw (IllegalArgumentException.
+            (throw (ex-info
                     (format "Request: [%s]<BR>==> Error: [%s]<BR>==> Context: [%s]"
                             (pr-str (select-keys request [:uri :query-string :body]))
                             (pr-str error)
-                            context)))
+                            context)
+                    {:type :coercion-error
+                     :schema schema
+                     :data data
+                     :context context}))
             res))))))
 
 (defn request-walker
