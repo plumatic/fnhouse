@@ -113,7 +113,7 @@
   (let [input-coercer (fn [schema]
                         (when (= schema LowInput)
                           (fn [request x]
-                            (-> x (?> (string? x) Long/parseLong) inc))))
+                            (-> x (?> (string? x) (Long/parseLong)) inc))))
         output-coercer (fn [schema]
                          (when (= schema HighOutput)
                            (fn [request x] (dec x))))
