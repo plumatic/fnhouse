@@ -72,4 +72,16 @@
       (is (= {:uri-arg 1 :qp1 "x" :qp2 3 :body-arg :xx :resource-keys [:data-store]}
              (singleton @data-store))))))
 
+(deftest empty-path-test
+  (defnk ^:private $GET
+    {:responses {200 {:success? Boolean}}}
+    []
+    {:body "root!"})
+  (is (= #{"/" "/test/:handler/:uri-arg"}
+         (set (map (comp :path :info) ((handlers/nss->handlers-fn {"" 'fnhouse.handlers-test}) {})))))
+  (is (= #{"/prefix/" "/prefix/test/:handler/:uri-arg"}
+         (set (map (comp :path :info) ((handlers/nss->handlers-fn {"prefix" 'fnhouse.handlers-test}) {})))))
+
+  (ns-unmap 'fnhouse.handlers-test '$GET))
+
 (use-fixtures :once schema-test/validate-schemas)

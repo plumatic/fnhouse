@@ -234,9 +234,10 @@
    & [extra-info-fn :- (s/maybe (s/=> s/Any Var))]]
   (->> prefix->ns-sym
        (mapcat (fn [[prefix ns-sym]]
-                 (map (fn [annotated-handler]
-                        (update-in annotated-handler [:info] apply-path-prefix prefix))
-                      (ns->handler-fns ns-sym (or extra-info-fn (constantly nil))))))))
+                 (cond->> (ns->handler-fns ns-sym (or extra-info-fn (constantly nil)))
+                          (seq prefix) (map (fn [annotated-handler]
+                                              (update-in annotated-handler
+                                                         [:info] apply-path-prefix prefix))))))))
 
 (s/defn nss->handlers-fn :- (s/=> schemas/API Resources)
   "Partially build an API from a map of prefix string to namespace symbols.
