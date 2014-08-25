@@ -178,6 +178,13 @@
        (vec raw-declared-args) (source-map->str source-map))
       info)))
 
+(s/defn var->annotated-handler :- AnnotatedProtoHandler
+  "Take a Var corresponding to a fnhouse handler and return an AnnotatedProtoHandler."
+  [var :- Var
+   extra-info-fn]
+  {:info (var->handler-info var extra-info-fn)
+   :proto-handler (pfnk/fn->fnk (fn redefable [m] (@var m))
+                                (pfnk/io-schemata @var))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extracting ProtoHandlers and injecting resources to make them Handlers
@@ -220,9 +227,7 @@
    extra-info-fn]
   (for [var (vals (ns-interns ns-sym))
         :when (fnhouse-handler? var)]
-    {:info (var->handler-info var extra-info-fn)
-     :proto-handler (pfnk/fn->fnk (fn redefable [m] (@var m))
-                                  (pfnk/io-schemata @var))}))
+    (var->annotated-handler var extra-info-fn)))
 
 (s/defn nss->proto-handlers :- [AnnotatedProtoHandler]
   "Take a map from path prefix string to namespace symbol.
