@@ -55,7 +55,7 @@
    populated by passing an extra-info-fn to the functions in fnhouse.handlers."
   {;; HTTP-related info
    :path (s/both String (s/pred #(.startsWith ^String % "/") 'starts-with-slash?))
-   :method (s/enum :get :head :post :put :delete)
+   :method (s/enum :get :head :post :put :delete :patch)
 
    :description String
 
