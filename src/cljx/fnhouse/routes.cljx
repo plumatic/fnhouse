@@ -29,10 +29,10 @@
    prioritizes literal matches over single-wildcards, and
    single-wildcards over multiple-wildcards.  The search will
    backtrack to try all possible matching routes."
-  (:use plumbing.core)
   (:require
    [clojure.string :as str]
-   [schema.core :as s]
+   [schema.core :as s #+cljs :include-macros #+cljs true]
+   [plumbing.core :as p #+cljs :include-macros #+cljs true]
    [plumbing.fnk.schema :as fnk-schema]
    [plumbing.map :as map]
    [fnhouse.schemas :as schemas]))
@@ -85,7 +85,7 @@
   "Build a prefix map from a set of handlers, for efficient request routing via prefix-lookup."
   [annotated-handlers]
   (let [flat-entries (for [annotated-handler annotated-handlers]
-                       (letk [[handler [:info path method]] annotated-handler]
+                       (p/letk [[handler [:info path method]] annotated-handler]
                          [(concat (match-tokens path) [method])
                           {:handler handler
                            :uri-arg-ks (uri-arg-ks path)}]))
@@ -127,6 +127,6 @@
   (let [prefix-map (build-prefix-map handlers)]
     (fnk [uri request-method :as request]
       (if-let [found (prefix-lookup prefix-map (split-path uri) request-method)]
-        (letk [[uri-args [:leaf handler uri-arg-ks]] found]
+        (p/letk [[uri-args [:leaf handler uri-arg-ks]] found]
           (handler (assoc request :uri-args (zipmap uri-arg-ks uri-args))))
         {:status 404 :body "Not found."}))))

@@ -10,10 +10,9 @@
    output coercion, which enable the coercion of custom types in the input and output.
 
    For examples, see the included 'examples/guesthouse' project."
-  (:use plumbing.core)
   (:require
    [schema.coerce :as coerce]
-   [schema.core :as s]
+   [schema.core :as s #+cljs :include-macros #+cljs true]
    [schema.utils :as utils]
    [fnhouse.schemas :as schemas]))
 

@@ -2,8 +2,9 @@
   "Defines schemas for Handlers and HandlerInfo, fnhouse's API description format.
    See docstrings below for details."
   (:require
+   [plumbing.core :as p #+cljs :include-macros #+cljs true]
    [plumbing.fnk.schema :as fnk-schema]
-   [schema.core :as s]))
+   [schema.core :as s #+cljs :include-macros #+cljs true]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

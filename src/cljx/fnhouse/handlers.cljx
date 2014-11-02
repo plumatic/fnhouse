@@ -75,15 +75,15 @@
    [2] https://github.com/prismatic/schema
    [3] https://github.com/prismatic/plumbing
    [4] https://github.com/prismatic/coax"
-  (:use plumbing.core)
   (:require
    [clojure.string :as str]
-   [schema.core :as s]
+   [schema.core :as s #+cljs :include-macros #+cljs true]
+   [plumbing.core :as p #+cljs :include-macros #+cljs true]
    [plumbing.fnk.pfnk :as pfnk]
    [plumbing.fnk.schema :as fnk-schema]
    [fnhouse.schemas :as schemas]
    [fnhouse.routes :as routes])
-  (:import [clojure.lang Symbol Var]))
+  #_(:import [clojure.lang Symbol Var]))
 
 (def ^:dynamic ^String *path-separator*
   "The string to be used as a path separator in fnhouse fn names."
@@ -91,6 +91,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Private schemas
+
+(s/defschema Symbol (s/pred symbol?))
+
+(s/defschema Var (s/pred var?))
 
 (s/defschema Resources
   "A map of external resoures to be injected into a fnhouse handler"
@@ -117,7 +121,7 @@
    overrides in metadata.  (You must pass both overrides, or neither)."
   [var :- Var]
   (or (not-empty (select-keys (meta var) [:path :method]))
-      (let [var-name (-> var meta (safe-get :name) name)
+      (let [var-name (-> var meta (p/safe-get :name) name)
             last-idx (.lastIndexOf var-name *path-separator*)]
         {:path (-> var-name (subs 0 last-idx) (str/replace *path-separator* "/") ensure-leading-slash)
          :method (-> var-name (subs (inc last-idx)) str/lower-case keyword)})))
@@ -139,10 +143,10 @@
   "Extract the handler info for the function referred to by the specified var."
   [var :- Var
    extra-info-fn]
-  (letk [[method path] (path-and-method var)
-         [{doc ""} {responses {}}] (meta var)
-         [{resources {}} {request {}}] (pfnk/input-schema @var)
-         [{uri-args s/Any} {query-params s/Any} {body nil}] request]
+  (p/letk [[method path] (path-and-method var)
+           [{doc ""} {responses {}}] (meta var)
+           [{resources {}} {request {}}] (pfnk/input-schema @var)
+           [{uri-args s/Any} {query-params s/Any} {body nil}] request]
     (let [source-map (source-map var)
           explicit-uri-args (dissoc (default-map-schema uri-args) s/Keyword)
           raw-declared-args (routes/uri-arg-ks path)
@@ -154,7 +158,7 @@
                 :request {:query-params (default-map-schema query-params)
                           :body body
                           :uri-args (merge
-                                     (map-from-keys (constantly String) declared-args)
+                                     (p/map-from-keys (constantly String) declared-args)
                                      explicit-uri-args)}
                 :responses responses
 
@@ -198,7 +202,7 @@
   (pfnk/fn->fnk
    (fn [all-resources]
      (for [proto-handler proto-handlers]
-       (letk [[proto-handler info] proto-handler]
+       (p/letk [[proto-handler info] proto-handler]
          (let [resources (select-keys all-resources (keys (:resources (pfnk/input-schema proto-handler))))]
            {:info info
             :handler (pfnk/fn->fnk
