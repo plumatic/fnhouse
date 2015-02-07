@@ -167,7 +167,7 @@
        (empty? undeclared-args)
        "Undeclared args %s in %s" (vec undeclared-args) (source-map->str source-map))
       (fnk-schema/assert-iae
-       (or (not (boolean body)) (boolean (#{:post :put} method)))
+       (or (not (boolean body)) (boolean (#{:post :put :patch} method)))
        "Body only allowed in post or put method in %s" (source-map->str source-map))
       (fnk-schema/assert-iae
        (every? #{:resources :request s/Keyword} (keys (pfnk/input-schema @var)))
