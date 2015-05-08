@@ -60,7 +60,7 @@
    :description String
 
    :request {:uri-args {s/Keyword Schema}
-             :query-params fnk-schema/InputSchema
+             :query-params Schema
              :body (s/maybe Schema)}
    :responses {(s/named s/Int "status code")
                (s/named Schema "response body schema")}
