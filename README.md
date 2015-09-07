@@ -1,6 +1,8 @@
 ![fnhouse!](https://raw.github.com/wiki/prismatic/fnhouse/images/fnhouse.jpg)
 
-Leiningen dependency (Clojars): `[prismatic/fnhouse "0.1.2"]`
+Leiningen dependency (Clojars): 
+
+[![Clojars Project](http://clojars.org/prismatic/fnhouse/latest-version.svg)](http://clojars.org/prismatic/fnhouse)
 
 **This is an alpha release. The API and organizational structure are
 subject to change. Comments and contributions are much appreciated.**

@@ -1,3 +1,6 @@
+## 0.2.0
+ * **BREAKING** `fnhouse.docs` is compatible with Schema 1.0.0+ and incompatible with earlier verisons.
+
 ## 0.1.2
  * Relax query-param schema to allow non-literal maps.
 
