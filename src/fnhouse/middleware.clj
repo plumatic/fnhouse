@@ -60,6 +60,7 @@
                     {:type :coercion-error
                      :schema schema
                      :data data
+                     :error error
                      :context context}))
             res))))))
 
