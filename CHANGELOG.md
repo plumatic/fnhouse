@@ -1,3 +1,6 @@
+## 0.2.1
+ * Include the raw error in coercion middleware exception
+
 ## 0.2.0
  * **BREAKING** `fnhouse.docs` is compatible with Schema 1.0.0+ and incompatible with earlier verisons.
 
