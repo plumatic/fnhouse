@@ -9,7 +9,8 @@
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]]
                    :global-vars {*warn-on-reflection* true}}
              :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}
-             :1.7 {:dependencies [[org.clojure/clojure "1.7.0"]]}}
-  :aliases {"all" ["with-profile" "dev:dev,1.5:dev,1.7"]}
+             :1.7 {:dependencies [[org.clojure/clojure "1.7.0"]]}
+             :1.8 {:dependencies [[org.clojure/clojure "1.8.0-RC1"]]}}
+  :aliases {"all" ["with-profile" "dev:dev,1.5:dev,1.7:dev,1.8"]}
   :lein-release {:deploy-via :shell
                  :shell ["lein" "deploy" "clojars"]})
