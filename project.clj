@@ -3,7 +3,7 @@
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo}
-  :url "https://github.com/Prismatic/fnhouse"
+  :url "https://github.com/plumatic/fnhouse"
   :dependencies [[prismatic/plumbing "0.4.3" :exclusions [prismatic/schema]]
                  [prismatic/schema "1.0.1"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]]
